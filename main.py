@@ -40,7 +40,8 @@ for repo in github.get_user().get_repos():
          "Language":repo.language,
          "DefaultBranch":repo.default_branch,
          "HassIssues":repo.has_issues,
-         "IsPrivate":repo.private
+         "IsPrivate":repo.private,
+         #"IsPrivate": repo.private
          }
     )
 
