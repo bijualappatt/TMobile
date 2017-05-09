@@ -17,6 +17,8 @@ for repo in github.get_user().get_repos():
 
     #   TODO: Check for duplication
     #   TODO: Get Branch and Commit details
+    #   TODO: Get Language details
+    #   TODO: Get Number of Colloaborators
 
     db.RepositoryInfo.insert_one(
         {"RepositoryID": repo.id,
@@ -44,5 +46,7 @@ for repo in github.get_user().get_repos():
          #"IsPrivate": repo.private
          }
     )
+
+#TODO : BitBucket Integration
 
 
