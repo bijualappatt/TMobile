@@ -18,14 +18,15 @@ RepoData={}
 github = Github(AUTH_USER, AUTH_PASS)
 
 #Loop through all repositories belongs to the logged-in user
+print('Getting Repository Information and updating database...please wait')
 for repo in github.get_user().get_repos():
     BranchData=[]
     CommitsData=[]
 
-    #   TODO: Check for duplication
-    #   TODO: Get Branch and Commit details
+    #   TODO: Get CommitterID correctly and replace
     #   TODO: Get Language details
     #   TODO: Get Number of Colloaborators
+    #   TODO: Get Full Path of each file in the repository
 
     #Get all Branches in the repository and create a Separate JSON object
     for branch in repo.get_branches():
@@ -36,7 +37,7 @@ for repo in github.get_user().get_repos():
     #Get all commits in the repository and create a Separate JSON object
     for commit in repo.get_commits():
         Comm={} #Initialize a JSON string which holds single commit.
-        Comm["sha"]=commit.sha
+        Comm["hash"]=commit.sha
         Comm["committerid"]=commit.commit.committer.name
         Comm["name"] = commit.commit.committer.name
         Comm["email"] = commit.commit.committer.email
@@ -44,7 +45,10 @@ for repo in github.get_user().get_repos():
         Comm["message"] = commit.commit.message
         CommitsData.append(Comm) # Add the commit to the Commits Array for the current repository
 
-    RepoData["_id"]=repo.id
+    LangData={}
+    LangData=repo.get_languages()
+
+    RepoData["_id"]=repo.id #Generate Unique ID and use it instead of RepoID
     RepoData["RepositoryID"] = repo.id
     RepoData["RepositoryName"] = repo.name
     RepoData["FullName"] = repo.full_name
@@ -67,7 +71,8 @@ for repo in github.get_user().get_repos():
     RepoData["DefaultBranch"] = repo.default_branch
     RepoData["HassIssues"] = repo.has_issues
     RepoData["IsPrivate"] = repo.private
-    RepoData["vcs"]='GitHub' #Version Control System Used - GitHub/BitBucket
+    RepoData["vcs"]='GITHUB' #Version Control System Used - GitHub/BitBucket
+    RepoData["LanguageExtInfo"]=LangData
 
     # Replace the RepositoryData if exists, otherwise inserts
     #db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
@@ -76,6 +81,7 @@ for repo in github.get_user().get_repos():
 
 
 # Repo Iteration Loop Ends Here
+print('Done!')
 
 
 #TODO : BitBucket Integration
