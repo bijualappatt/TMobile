@@ -17,7 +17,7 @@ RepoData={}
 
 github = Github(AUTH_USER, AUTH_PASS)
 
-#Loop through all repositories of the logged-in user
+#Loop through all repositories belongs to the logged-in user
 for repo in github.get_user().get_repos():
     BranchData=[]
     CommitsData=[]
@@ -29,20 +29,20 @@ for repo in github.get_user().get_repos():
 
     #Get all Branches in the repository and create a Separate JSON object
     for branch in repo.get_branches():
-        SingleBranch={}
+        SingleBranch={} #Initialize a JSON string which holds a single Branch
         SingleBranch["BranchName"]=branch.name
-        BranchData.append(SingleBranch)
+        BranchData.append(SingleBranch) #Add the Branch to the Branches Arrary for the current repository
 
     #Get all commits in the repository and create a Separate JSON object
     for commit in repo.get_commits():
-        Comm={}
+        Comm={} #Initialize a JSON string which holds single commit.
         Comm["sha"]=commit.sha
         Comm["committerid"]=commit.commit.committer.name
         Comm["name"] = commit.commit.committer.name
         Comm["email"] = commit.commit.committer.email
         Comm["date"] = commit.last_modified
         Comm["message"] = commit.commit.message
-        CommitsData.append(Comm)
+        CommitsData.append(Comm) # Add the commit to the Commits Array for the current repository
 
     RepoData["_id"]=repo.id
     RepoData["RepositoryID"] = repo.id
@@ -53,8 +53,8 @@ for repo in github.get_user().get_repos():
     RepoData["OwnerUserName"] = repo.owner.login
     RepoData["OwnerType"] = repo.owner.type
     RepoData["RepositoryURL"] = repo.url
-    RepoData["BranchName"] = BranchData
-    RepoData["Commits"] = CommitsData
+    RepoData["BranchName"] = BranchData     # Branches Array
+    RepoData["Commits"] = CommitsData       #Commits Array
     RepoData["LanguagesURL"] = repo.languages_url
     RepoData["CommitsURL"] = repo.commits_url
     RepoData["IssuesURL"] = repo.issues_url
@@ -69,7 +69,11 @@ for repo in github.get_user().get_repos():
     RepoData["IsPrivate"] = repo.private
     RepoData["vcs"]='GitHub' #Version Control System Used - GitHub/BitBucket
 
-    db.RepositoryInfo.insert(RepoData)
+    #Check the Current Repository Information is already available in the MongoDB Collection
+    #collection.update({'_id': book["_id"]}, book, upsert=True)
+    db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
+
+    # db.RepositoryInfo.insert_one(RepoData)
     #db.RepositoryInfo.insert_one(RepoDataJSON)
 
 # Repo Iteration Loop Ends Here
