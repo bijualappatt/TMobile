@@ -69,12 +69,11 @@ for repo in github.get_user().get_repos():
     RepoData["IsPrivate"] = repo.private
     RepoData["vcs"]='GitHub' #Version Control System Used - GitHub/BitBucket
 
-    #Check the Current Repository Information is already available in the MongoDB Collection
-    #collection.update({'_id': book["_id"]}, book, upsert=True)
-    db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
+    # Replace the RepositoryData if exists, otherwise inserts
+    #db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
+    db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
+    #db.RepositoryInfo.insert_one(RepoData)
 
-    # db.RepositoryInfo.insert_one(RepoData)
-    #db.RepositoryInfo.insert_one(RepoDataJSON)
 
 # Repo Iteration Loop Ends Here
 
