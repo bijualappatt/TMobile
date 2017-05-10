@@ -17,16 +17,14 @@ RepoData={}
 
 github = Github(AUTH_USER, AUTH_PASS)
 
+#   TODO: Get Full Path of each file in the repository
+
 #Loop through all repositories belongs to the logged-in user
 print('Getting Repository Information and updating database...please wait')
 for repo in github.get_user().get_repos():
     BranchData=[]
     CommitsData=[]
-
-    #   TODO: Get CommitterID correctly and replace
-    #   TODO: Get Language details
-    #   TODO: Get Number of Colloaborators
-    #   TODO: Get Full Path of each file in the repository
+    Contributors=[]
 
     #Get all Branches in the repository and create a Separate JSON object
     for branch in repo.get_branches():
@@ -45,8 +43,16 @@ for repo in github.get_user().get_repos():
         Comm["message"] = commit.commit.message
         CommitsData.append(Comm) # Add the commit to the Commits Array for the current repository
 
+    #Get Language information
     LangData={}
     LangData=repo.get_languages()
+
+    for contrib in repo.get_contributors():
+        Contrib={}
+        Contrib["id"]=contrib.id
+        Contrib["login"] = contrib.login
+        #Contrib["type"] = contrib.type
+        Contributors.append((Contrib))
 
     RepoData["_id"]=repo.id #Generate Unique ID and use it instead of RepoID
     RepoData["RepositoryID"] = repo.id
@@ -73,12 +79,12 @@ for repo in github.get_user().get_repos():
     RepoData["IsPrivate"] = repo.private
     RepoData["vcs"]='GITHUB' #Version Control System Used - GitHub/BitBucket
     RepoData["LanguageExtInfo"]=LangData
+    RepoData["Contributors"]=Contributors
 
     # Replace the RepositoryData if exists, otherwise inserts
     #db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
     db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
     #db.RepositoryInfo.insert_one(RepoData)
-
 
 # Repo Iteration Loop Ends Here
 print('Done!')
