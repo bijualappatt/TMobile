@@ -171,7 +171,7 @@ if(success):
             RepoData["HassIssues"] = repo['has_issues']
             RepoData["IsPrivate"] = repo['is_private']
             RepoData["vcs"] = 'BITBUCKET'  # Version Control System Used - GitHub/BitBucket
-            #RepoData["LanguageExtInfo"] = LangData
+            #RepoData["LanguageExtInfo"] = LangData #TODO : Get Language Info
             #RepoData["Contributors"] = Contributors
 
             db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
