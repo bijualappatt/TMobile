@@ -1,9 +1,16 @@
 import pymongo
 from bson import json_util
-import json
 from github import Github
 
-from bitbucket.bitbucket import  Bitbucket
+from bitbucket.bitbucket import Bitbucket
+
+import requests
+import json
+
+
+class Payload(object):
+    def __init__(self, j):
+        self.__dict__ = json.loads(j)
 
 AUTH_USER='bijualappatt'
 AUTH_PASS='Password@123'
@@ -20,7 +27,7 @@ github = Github(AUTH_USER, AUTH_PASS)
 #   TODO: Get Full Path of each file in the repository
 
 #Loop through all repositories belongs to the logged-in user
-print('Getting Repository Information and updating database...please wait')
+print('Getting GitHub Repository Information and updating database...please wait')
 for repo in github.get_user().get_repos():
     BranchData=[]
     CommitsData=[]
@@ -63,7 +70,7 @@ for repo in github.get_user().get_repos():
     RepoData["OwnerUserName"] = repo.owner.login
     RepoData["OwnerType"] = repo.owner.type
     RepoData["RepositoryURL"] = repo.url
-    RepoData["BranchName"] = BranchData     # Branches Array
+    RepoData["Branch"] = BranchData     # Branches Array
     RepoData["Commits"] = CommitsData       #Commits Array
     RepoData["LanguagesURL"] = repo.languages_url
     RepoData["CommitsURL"] = repo.commits_url
@@ -90,6 +97,86 @@ for repo in github.get_user().get_repos():
 print('Done!')
 
 
-#TODO : BitBucket Integration
+# BitBucket Integration
+print('Getting BitBucket Repository Information and updating database...please wait')
+bb = Bitbucket(AUTH_USER, AUTH_PASS)
+success, repositories = bb.repository.all()
+if(success):
+    for repo in repositories:
+        BranchData.clear()
+        CommitsData.clear()
+        Contributors.clear()
 
+        Resp = requests.get('https://api.bitbucket.org/2.0/repositories/bijualappatt/' + repo['slug'],
+                         auth=(AUTH_USER, AUTH_PASS),
+                         headers={'content-type': 'application/json'})
+        if(Resp.status_code==200):
+            pl = Payload(Resp.text)
+            ow = Payload(json.dumps(pl.owner)) #Get owner information json and serialize
+            ln = Payload(json.dumps(pl.links))
+            br = Payload(json.dumps(pl.mainbranch))
 
+            #Get Branch information by calling the REST api
+            BranchesJSONArray = requests.get(ln.branches['href'],
+                                        auth=(AUTH_USER, AUTH_PASS),
+                                        headers={'content-type': 'application/json'})
+            if(BranchesJSONArray.status_code==200):
+                BranchJSON=json.loads(BranchesJSONArray.text)
+                for BranchDet in BranchJSON['values']:
+                    SingleBranch = {}  # Initialize a JSON string which holds a single Branch
+                    SingleBranch["BranchName"] = BranchDet['name']
+                    BranchData.append(SingleBranch)  # Add the Branch to the Branches Arrary for the current repository
+
+            RepoData["_id"] = pl.uuid
+            RepoData["RepositoryID"] = pl.uuid
+            RepoData["RepositoryName"] = repo['slug']
+            RepoData["FullName"] = repo['name']
+            RepoData["Description"] = repo['description']
+            RepoData["OwnerID"] = repo['owner']
+            RepoData["OwnerUserName"] = ow.display_name
+            RepoData["OwnerType"] = ow.type
+            RepoData["RepositoryURL"] = ln.self['href']
+            RepoData["Branch"] = BranchData  # Branches Array
+
+            # Get Commit information by calling the REST api
+            CommitsJSONArray = requests.get(ln.commits['href'],
+                                        auth=(AUTH_USER, AUTH_PASS),
+                                        headers={'content-type': 'application/json'})
+
+            if(CommitsJSONArray.status_code==200):
+                CommitJSON=json.loads(CommitsJSONArray.text)
+                for CommitDet in CommitJSON['values']:
+                    #print(CommitDet['author']['user']['username'])
+
+                    Comm = {}  # Initialize a JSON string which holds single commit.
+                    Comm["hash"] = CommitDet['hash']
+                    Comm["committerid"] = CommitDet['author']['user']['username']
+                    Comm["name"] = CommitDet['author']['user']['display_name']
+                    Comm["email"] = CommitDet['author']['raw']
+                    Comm["date"] = CommitDet['date']
+                    Comm["message"] = CommitDet['message']
+                    CommitsData.append(Comm)  # Add the commit to the Commits Array for the current repository
+
+            RepoData["Commits"] = CommitsData  # Commits Array
+            RepoData["LanguagesURL"] = ''
+            RepoData["CommitsURL"] = ln.commits['href']
+            RepoData["IssuesURL"] = ln.self['href'] +'/issues'
+            RepoData["GitURL"] = ln.clone[0]['href']
+            RepoData["CloneURL"] = ln.clone[0]['href']
+            RepoData["CreatedAt"] = repo['created_on']
+            RepoData["UpdatedAt"] = repo['last_updated']
+            RepoData["Size"] = repo['size']
+            RepoData["Language"] = repo['language']
+            RepoData["DefaultBranch"] = br.name
+            RepoData["HassIssues"] = repo['has_issues']
+            RepoData["IsPrivate"] = repo['is_private']
+            RepoData["vcs"] = 'BITBUCKET'  # Version Control System Used - GitHub/BitBucket
+            #RepoData["LanguageExtInfo"] = LangData
+            #RepoData["Contributors"] = Contributors
+
+            db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
+        else:
+            print('Failed getting BitBucket data...')
+else:
+    print('Failed getting BitBucket data...')
+print("Done!")
