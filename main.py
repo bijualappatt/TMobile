@@ -6,11 +6,38 @@ from bitbucket.bitbucket import Bitbucket
 
 import requests
 import json
-
+from datetime import datetime
+from datetime import time
+from datetime import date
+from subprocess import call
+from pprint import pprint
 
 class Payload(object):
     def __init__(self, j):
         self.__dict__ = json.loads(j)
+
+#Deleete contents of folder where we download the repoository for running CLOC
+def CleanupSrc():
+    REPO_TEMP = 'rd /s /q  .\src'
+    call(REPO_TEMP,shell=True)
+    call('mkdir .\src',shell=True)
+
+#Clone Repository and run CLOC
+def CloneGitRepo(Type, RepoName,CloneURL):
+    PROC_PATH='.\Git\cmd\git.exe -C .\src clone ' + CloneURL + ' --progress --recursive '
+    call(PROC_PATH, shell=True)
+    #pathTree='rd /s /q  .\src'+'\\'+RepoName
+    #call(pathTree, shell=True)
+
+    CLOC_PATH='.\\bin\\cloc172.exe .\\src\\'+ RepoName +' --json > .\\src\\'+RepoName+'.clo'
+    call(CLOC_PATH,shell=True) #Run CLOC and write output to file
+
+    #Read JSON from file
+    with open('.\\src\\'+RepoName+'.clo') as json_data:
+        data = json.load(json_data)
+    return data #Contains JSON string data
+
+###################################################################################################################
 
 AUTH_USER='bijualappatt'
 AUTH_PASS='Password@123'
@@ -28,6 +55,9 @@ github = Github(AUTH_USER, AUTH_PASS)
 
 #Loop through all repositories belongs to the logged-in user
 print('Getting GitHub Repository Information and updating database...please wait')
+
+CleanupSrc()
+
 for repo in github.get_user().get_repos():
     BranchData=[]
     CommitsData=[]
@@ -43,10 +73,14 @@ for repo in github.get_user().get_repos():
     for commit in repo.get_commits():
         Comm={} #Initialize a JSON string which holds single commit.
         Comm["hash"]=commit.sha
-        Comm["committerid"]=commit.commit.committer.name
+        # Comm["committerid"]=commit.committer.login
+        Comm["committerid"] = commit.commit.committer.email
         Comm["name"] = commit.commit.committer.name
         Comm["email"] = commit.commit.committer.email
         Comm["date"] = commit.last_modified
+        #print(commit.last_modified)
+        #datestr=datetime.strftime(commit.last_modified,'%a, %d %b %H:%M:%S %Z')
+        #print(datetime.strptime(commit.last_modified, '%y-%m-%d %M:%H%S'))
         Comm["message"] = commit.commit.message
         CommitsData.append(Comm) # Add the commit to the Commits Array for the current repository
 
@@ -88,6 +122,8 @@ for repo in github.get_user().get_repos():
     RepoData["LanguageExtInfo"]=LangData
     RepoData["Contributors"]=Contributors
 
+    LangJSON=CloneGitRepo('GITHUB', repo.name, RepoData["CloneURL"])
+    RepoData['LanguageMetrics']=LangJSON
     # Replace the RepositoryData if exists, otherwise inserts
     #db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
     db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
@@ -101,6 +137,7 @@ print('Done!')
 print('Getting BitBucket Repository Information and updating database...please wait')
 bb = Bitbucket(AUTH_USER, AUTH_PASS)
 success, repositories = bb.repository.all()
+LangJSON = {}
 if(success):
     for repo in repositories:
         BranchData.clear()
@@ -138,6 +175,9 @@ if(success):
             RepoData["RepositoryURL"] = ln.self['href']
             RepoData["Branch"] = BranchData  # Branches Array
 
+
+
+
             # Get Commit information by calling the REST api
             CommitsJSONArray = requests.get(ln.commits['href'],
                                         auth=(AUTH_USER, AUTH_PASS),
@@ -146,7 +186,6 @@ if(success):
             if(CommitsJSONArray.status_code==200):
                 CommitJSON=json.loads(CommitsJSONArray.text)
                 for CommitDet in CommitJSON['values']:
-                    #print(CommitDet['author']['user']['username'])
 
                     Comm = {}  # Initialize a JSON string which holds single commit.
                     Comm["hash"] = CommitDet['hash']
@@ -157,14 +196,37 @@ if(success):
                     Comm["message"] = CommitDet['message']
                     CommitsData.append(Comm)  # Add the commit to the Commits Array for the current repository
 
+                    Contrib = {}
+                    Contrib["id"] = CommitDet['author']['user']['uuid']
+                    Contrib["login"] = CommitDet['author']['user']['username']
+                    # Contrib["type"] = contrib.type
+                    Contributors.append((Contrib)) #All committors considered as contributors.
+
+                #Remove duplicate committers to make it a contributor list
+                Contribs=[] #Holds unique Contributors
+                for element in Contributors:
+                    if element not in Contribs:
+                        Contribs.append(element)
+
             RepoData["Commits"] = CommitsData  # Commits Array
             RepoData["LanguagesURL"] = ''
             RepoData["CommitsURL"] = ln.commits['href']
             RepoData["IssuesURL"] = ln.self['href'] +'/issues'
             RepoData["GitURL"] = ln.clone[0]['href']
             RepoData["CloneURL"] = ln.clone[0]['href']
+
+            #print(datetime.now())
+            #print(datetime.strptime(datetime.now(), '%y-%m-%d %H:%M:%S'))
+            #print(datetime.strftime(datetime.now(), '%y-%m-%d %H:%M:%S'))
+            #print( repo['created_on'])
+            #print(datetime.strptime( repo['created_on'], '%y-%m-%d %H:%M:%S'))
+            #cro=datetime.strptime(repo['created_on'],'%y-%m-%d %H:%M:%S.%f')
+            #print(cro)
             RepoData["CreatedAt"] = repo['created_on']
             RepoData["UpdatedAt"] = repo['last_updated']
+            #RepoData["CreatedAt"] = cro
+            #RepoData["UpdatedAt"] = cro
+
             RepoData["Size"] = repo['size']
             RepoData["Language"] = repo['language']
             RepoData["DefaultBranch"] = br.name
@@ -172,7 +234,8 @@ if(success):
             RepoData["IsPrivate"] = repo['is_private']
             RepoData["vcs"] = 'BITBUCKET'  # Version Control System Used - GitHub/BitBucket
             #RepoData["LanguageExtInfo"] = LangData #TODO : Get Language Info
-            #RepoData["Contributors"] = Contributors
+            RepoData["Contributors"] = Contribs
+
 
             db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
         else:
