@@ -12,8 +12,13 @@ import json
 from datetime import datetime
 from datetime import time
 from datetime import date
+
 from subprocess import call
 from pprint import pprint
+import dateutils
+from dateutils import datetime
+import re
+# import datetime, time;
 
 class Payload(object):
     def __init__(self, j):
@@ -43,6 +48,7 @@ def CloneGitRepo(Type, RepoName,CloneURL):
     if Type == "GITHUB":
         CLOC_PATH = '.\\bin\\cloc172.exe .\\src\\' + RepoName + ' --json > .\\src\\' + RepoName + '.clo'
     else:
+        #Collecting info frum dummy repository
         CLOC_PATH = '.\\bin\\cloc172.exe .\\bbucket\\' + RepoName + ' --json > .\\src\\' + RepoName + '.clo'
     call(CLOC_PATH,shell=True) #Run CLOC and write output to file
 
@@ -53,14 +59,16 @@ def CloneGitRepo(Type, RepoName,CloneURL):
 
 ###################################################################################################################
 
-# AUTH_USER='bijualappatt'
-# AUTH_PASS='Password@123'
+AUTH_USER='bijualappatt'
+AUTH_PASS='Password@123'
 
-AUTH_USER='vinaykumaran'
-AUTH_PASS='ustglobal@123'
+# AUTH_USER='vinaykumaran'
+# AUTH_PASS='ustglobal@123'
 
 MONGODB_SERVER = 'localhost'
 MONGODB_PORT = 27017
+
+DateFormat = '%Y-%m-%d %H:%M:%S'
 
 client = pymongo.MongoClient(MONGODB_SERVER, MONGODB_PORT) #Initialize MongoClient
 db = client.TMobile
@@ -81,6 +89,7 @@ for repo in github.get_user().get_repos():
     Contributors=[]
     IssuesData=[]
 
+
     #Get all Branches in the repository and create a Separate JSON object
     for branch in repo.get_branches():
         SingleBranch={} #Initialize a JSON string which holds a single Branch
@@ -95,11 +104,20 @@ for repo in github.get_user().get_repos():
         Comm["committerid"] = commit.commit.committer.email
         Comm["name"] = commit.commit.committer.name
         Comm["email"] = commit.commit.committer.email
-        #Comm["date"] = commit.last_modified
-        Comm["date"] = datetime.now()
-        #print(commit.last_modified)
-        #datestr=datetime.strftime(commit.last_modified,'%a, %d %b %H:%M:%S %Z')
-        #print(datetime.strptime(commit.last_modified, '%y-%m-%d %M:%H%S'))
+
+
+        # print (strDT)
+        #dtCommitDate = dateutils.datetime.strptime(strDT, DateFormat)
+        # Comm["date"] = dtCommitDate
+
+        try:
+            dtCommitDate = dateutils.datetime.strptime(commit.last_modified, '%a, %d %b %Y %H:%M:%S %Z')
+            Comm["date"]=dtCommitDate
+        except:
+            strDT=dateutils.datetime.strftime(datetime.now(),'%Y-%m-%d %H:%M:%S')
+            dtCommitDate=dateutils.datetime.strptime(strDT,DateFormat)
+            Comm["date"]=dtCommitDate
+
         Comm["message"] = commit.commit.message
         CommitsData.append(Comm) # Add the commit to the Commits Array for the current repository
 
@@ -118,9 +136,19 @@ for repo in github.get_user().get_repos():
         for issue in repo.get_issues():
             #print (issue)
             Issue={}
-            Issue["id"]=issue.id
-            Issue["title"] = issue.title
-            Issue['CreatedON']=issue.created_at
+            Issue["Id"]=issue.id
+            Issue["Title"] = issue.title
+
+            try:
+                strDT = dateutils.datetime.strftime(issue.created_at,'%Y-%m-%d %H:%M:%S')
+                dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+                Issue['CreatedOn']=dtInDate
+            except:
+                strDT = dateutils.datetime.strftime(datetime.now(),'%Y-%m-%d %H:%M:%S')
+                dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+                Issue['CreatedOn'] = dtInDate
+                # Issue['CreatedON'] =dateutils.datetime.strftime(datetime.now(),'%Y-%m-%d %H:%M:%S')
+
             #Issue["user"] = issue.user.login
             IssuesData.append(Issue)
     else:
@@ -142,8 +170,29 @@ for repo in github.get_user().get_repos():
     RepoData["IssuesURL"] = repo.issues_url
     RepoData["GitURL"] = repo.git_url
     RepoData["CloneURL"] = repo.clone_url
-    RepoData["CreatedAt"] = repo.created_at
-    RepoData["UpdatedAt"] = repo.updated_at
+
+    try:
+        strDT = dateutils.datetime.strftime(repo.created_at,'%Y-%m-%d %H:%M:%S')
+        dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+        RepoData["CreatedAt"] = dtInDate
+    except:
+        strDT = dateutils.datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')
+        dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+        RepoData["CreatedAt"] = dtInDate
+
+    try:
+        strDT = dateutils.datetime.strftime(repo.updated_at, '%Y-%m-%d %H:%M:%S')
+        dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+        RepoData["UpdatedAt"] = dtInDate
+        # RepoData["UpdatedAt"] = dateutils.datetime.strftime(repo.updated_at,'%Y-%m-%d %H:%M:%S')
+    except:
+        strDT = dateutils.datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')
+        dtInDate = dateutils.datetime.strptime(strDT, DateFormat)
+        RepoData["UpdatedAt"] = dtInDate
+
+    # RepoData["UpdatedAt"] = dateutils.datetime.strftime(repo.updated_at, '%Y-%m-%d %H:%M:%S')
+
+    # print(repo.updated_at)
     RepoData["Size"] = repo.size
     RepoData["Language"] = repo.language
     RepoData["DefaultBranch"] = repo.default_branch
@@ -155,7 +204,7 @@ for repo in github.get_user().get_repos():
 
     LangJSON=CloneGitRepo('GITHUB', repo.name, RepoData["CloneURL"])
     RepoData['LanguageMetrics']=LangJSON
-    # RepoData["Issues"] = IssuesData
+    RepoData["Issues"] = IssuesData
     # Replace the RepositoryData if exists, otherwise inserts
     #db.RepositoryInfo.update({'_id':RepoData["_id"]},RepoData,upsert=True)
     db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
@@ -164,14 +213,14 @@ for repo in github.get_user().get_repos():
 # Repo Iteration Loop Ends Here
 print('Done!')
 
-
+########################################################################################################################
 # BitBucket Integration
 print('Getting BitBucket Repository Information and updating database...please wait')
-# AUTH_USER='bijualappatt'
-# AUTH_PASS='Password#123'
+AUTH_USER='bijualappatt'
+AUTH_PASS='Password#123'
 
-AUTH_USER='vinaynanabala@gmail.com'
-AUTH_PASS='ustglobal@123'
+# AUTH_USER='vinaynanabala@gmail.com'
+# AUTH_PASS='ustglobal@123'
 
 
 bb = Bitbucket(AUTH_USER, AUTH_PASS)
@@ -244,8 +293,15 @@ if(success):
                         except:
                             Comm["name"] = "Not Available"
                         Comm["email"] = CommitDet['author']['raw']
-                        #Comm["date"] = CommitDet['date']
-                        Comm["date"] = datetime.now()
+
+                        # Comm["date"] = dateutils.datetime.strptime(CommitDet['date'],'%Y-%m-%d %H:%M:%S')
+                        try:
+                            dtCommitDate=dateutils.datetime.strptime(CommitDet['date'],'%Y-%m-%dT%H:%M:%S+00:00')
+                            Comm["date"] = dtCommitDate
+                        except:
+                            dtCommitDate = dateutils.datetime.strptime(datetime.now(), '%Y-%m-%dT%H:%M:%S+00:00')
+                            Comm["date"] = dtCommitDate
+
                         Comm["message"] = CommitDet['message']
                         CommitsData.append(Comm)  # Add the commit to the Commits Array for the current repository
 
@@ -275,8 +331,17 @@ if(success):
                 RepoData["GitURL"] = ln.clone[1]['href']
                 RepoData["CloneURL"] = ln.clone[0]['href']
 
-                RepoData["CreatedAt"] = repo['created_on']
-                RepoData["UpdatedAt"] = repo['last_updated']
+                # print('BitBucket Repo Created On : ')
+                # print(repo['created_on'])
+                strDT = re.sub('[T]', ' ', repo['created_on']) #Replace Time Separator
+                RepoData["CreatedAt"] = dateutils.datetime.strptime(strDT,'%Y-%m-%d %H:%M:%S.%f')
+
+                strDT = re.sub('[T]', ' ', repo['last_updated'])  # Replace Time Separator
+                RepoData["UpdatedAt"] = dateutils.datetime.strptime(strDT,'%Y-%m-%d %H:%M:%S.%f')
+
+                # print('BitBucket Repo Updated On : ')
+                # print(repo['last_updated'])
+
                 #RepoData["CreatedAt"] = cro
                 #RepoData["UpdatedAt"] = cro
 
@@ -292,7 +357,15 @@ if(success):
                             Issue = {}
                             Issue["Id"] = IssueDet['id']
                             Issue["Title"] = IssueDet['title']
-                            Issue["CreateOn"] = IssueDet['created_on']
+
+                            InDate=IssueDet['created_on'] #String Date
+                            try:
+                                dtInDate = datetime.strptime(InDate, '%Y-%m-%dT%H:%M:%S.%f+00:00'); #Convert to DateTime
+                                Issue["CreateOn"] =dtInDate
+                            except:
+                                Issue["CreateOn"] = datetime.now()
+
+                            # Issue["CreateOn"] = dateutils.datetime.strptime(IssueDet['created_on'],'%Y-%m-%dT%H:%M:%S.%f+00:00')
                             #Issue["CreatedBy"] = 'Not Available'
                             IssuesData.append(Issue)  # Add the commit to the Commits Array for the current repository
 
@@ -309,7 +382,7 @@ if(success):
                 LangJSON = CloneGitRepo('BITBUCKET', 'BBTMobile', RepoData["GitURL"])
 
                 RepoData['LanguageMetrics'] = LangJSON
-                # RepoData["Issues"] = IssuesData
+                RepoData["Issues"] = IssuesData
                 db.RepositoryInfo.update({'RepositoryID': RepoData["RepositoryID"]}, RepoData, upsert=True)
             else:
                 print('Failed getting BitBucket data...')
